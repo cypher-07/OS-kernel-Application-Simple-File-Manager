@@ -12,7 +12,7 @@ static uint8_t keyboard_scan_set_one[] = {
     0x08, '\t', 'Q', 'W', 'E', 'R', 'T',
     'Y', 'U', 'I', 'O', 'P', '[', ']',
     0x0d, 0x00, 'A', 'S', 'D', 'F', 'G',
-    'H', 'J', 'K', 'L', ';', '\'', '`', 
+    'H', 'J', 'K', 'L', ';', '\'', '`',
     0x00, '\\', 'Z', 'X', 'C', 'V', 'B',
     'N', 'M', ',', '.', '/', 0x00, '*',
     0x00, 0x20, 0x00, 0x00, 0x00, 0x00,
@@ -28,26 +28,34 @@ struct keyboard classic_keyboard = {
 
 int classic_keyboard_init()
 {
-    outb(PS2_PORT, PS2_COMMAND_ENABLE_FIRST_PORT);
+    outb(0x64, 0xAE);   // enable first PS/2 port
     return 0;
 }
 
 uint8_t classic_keyboard_scancode_to_char(uint8_t scancode)
 {
-    size_t size_of_keyboard_set_one = sizeof(keyboard_scan_set_one) / sizeof(uint8_t);
+    size_t size_of_keyboard_set_one =
+        sizeof(keyboard_scan_set_one) / sizeof(uint8_t);
     if (scancode > size_of_keyboard_set_one)
-    {
         return 0;
-    }
-
-    char c = keyboard_scan_set_one[scancode];
-    return c;
+    return keyboard_scan_set_one[scancode];
 }
 
-
-void clasic_keyboard_handle_interrupt()
+void clasic_keyboard_handle_interrupt(uint8_t scancode)
 {
+    // Ignore key-release events (high bit set)
+    if (scancode & 0x80)
+        return;
 
+    char c = classic_keyboard_scancode_to_char(scancode);
+    if (c == 0)
+        return;
+
+    // Convert uppercase to lowercase
+    if (c >= 'A' && c <= 'Z')
+        c = c + 32;
+
+    keyboard_push(c);
 }
 
 struct keyboard* classic_init()

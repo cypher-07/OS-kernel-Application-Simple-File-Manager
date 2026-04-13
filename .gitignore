@@ -1,0 +1,4 @@
+build/**/*.o
+bin/*.bin
+bin/*.iso
+programs/**/*.bin

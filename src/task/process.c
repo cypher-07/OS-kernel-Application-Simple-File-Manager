@@ -195,3 +195,78 @@ out:
     }
     return res;
 }
+
+int process_fork(struct process* parent, struct process** child_out)
+{
+    int res = 0;
+
+    int slot = process_get_free_slot();
+    if (slot < 0)
+    {
+        res = -EISTKN;
+        goto out;
+    }
+
+    struct process* child = kzalloc(sizeof(struct process));
+    if (!child)
+    {
+        res = -ENOMEM;
+        goto out;
+    }
+
+    process_init(child);
+
+    // Copy program code to new physical memory
+    child->ptr = kzalloc(parent->size);
+    if (!child->ptr)
+    {
+        res = -ENOMEM;
+        goto out;
+    }
+    memcpy(child->ptr, parent->ptr, parent->size);
+    child->size = parent->size;
+
+    // Allocate new stack
+    child->stack = kzalloc(PEACHOS_USER_PROGRAM_STACK_SIZE);
+    if (!child->stack)
+    {
+        res = -ENOMEM;
+        goto out;
+    }
+
+    // Copy stack contents from parent
+    memcpy(child->stack, parent->stack, PEACHOS_USER_PROGRAM_STACK_SIZE);
+
+    strncpy(child->filename, parent->filename, sizeof(child->filename));
+    child->id = slot;
+
+    // Create task - this calls paging_new_4gb internally
+    struct task* child_task = task_new(child);
+    if (ERROR_I(child_task) == 0)
+    {
+        res = ERROR_I(child_task);
+        goto out;
+    }
+    child->task = child_task;
+
+    // Clone page directory from parent
+    paging_free_4gb(child_task->page_directory);
+    child_task->page_directory = paging_copy_4gb(parent->task->page_directory);
+    if (!child_task->page_directory)
+    {
+        res = -ENOMEM;
+        goto out;
+    }
+
+    // Copy parent's saved registers into child
+    child_task->registers = parent->task->registers;
+
+    // Child returns 0 from fork
+    child_task->registers.eax = 0;
+
+    processes[slot] = child;
+    *child_out = child;
+
+out:
+    return res;
+}

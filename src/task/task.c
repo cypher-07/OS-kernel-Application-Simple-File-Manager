@@ -7,6 +7,9 @@
 #include "string/string.h"
 #include "memory/paging/paging.h"
 #include "idt/idt.h"
+#include "task/process.h"
+
+extern struct process* current_process;
 
 // The current task that is running
 struct task *current_task = 0;
@@ -106,6 +109,7 @@ int task_free(struct task *task)
 int task_switch(struct task *task)
 {
     current_task = task;
+    current_process = task->process;
     paging_switch(task->page_directory);
     return 0;
 }

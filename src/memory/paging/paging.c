@@ -1,5 +1,6 @@
 #include "paging.h"
 #include "memory/heap/kheap.h"
+#include "memory/memory.h"
 #include "status.h"
 void paging_load_directory(uint32_t *directory);
 
@@ -165,4 +166,35 @@ uint32_t paging_get(uint32_t* directory, void* virt)
     uint32_t entry = directory[directory_index];
     uint32_t* table = (uint32_t*)(entry & 0xfffff000);
     return table[table_index];
+}
+
+struct paging_4gb_chunk* paging_copy_4gb(struct paging_4gb_chunk* src)
+{
+    struct paging_4gb_chunk* chunk = kzalloc(sizeof(struct paging_4gb_chunk));
+    if (!chunk)
+        return 0;
+
+    uint32_t* new_dir = kzalloc(sizeof(uint32_t) * PAGING_TOTAL_ENTRIES_PER_TABLE);
+    if (!new_dir)
+    {
+        kfree(chunk);
+        return 0;
+    }
+
+    chunk->directory_entry = new_dir;
+
+    for (int i = 0; i < PAGING_TOTAL_ENTRIES_PER_TABLE; i++)
+    {
+        uint32_t src_entry = src->directory_entry[i];
+        uint32_t* src_table = (uint32_t*)(src_entry & 0xfffff000);
+
+        uint32_t* new_table = kzalloc(sizeof(uint32_t) * PAGING_TOTAL_ENTRIES_PER_TABLE);
+        if (!new_table)
+            return 0;
+
+        memcpy(new_table, src_table, sizeof(uint32_t) * PAGING_TOTAL_ENTRIES_PER_TABLE);
+        new_dir[i] = (uint32_t)new_table | (src_entry & 0x00000fff);
+    }
+
+    return chunk;
 }

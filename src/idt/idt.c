@@ -4,6 +4,8 @@
 #include "memory/memory.h"
 #include "task/task.h"
 #include "io/io.h"
+#include "keyboard/classic.h"
+
 struct idt_desc idt_descriptors[PEACHOS_TOTAL_INTERRUPTS];
 struct idtr_desc idtr_descriptor;
 
@@ -16,8 +18,9 @@ extern void isr80h_wrapper();
 
 void int21h_handler()
 {
-    print("Keyboard pressed!\n");
+    uint8_t scancode = insb(0x60);
     outb(0x20, 0x20);
+    clasic_keyboard_handle_interrupt(scancode);
 }
 
 void no_interrupt_handler()
@@ -55,6 +58,16 @@ void idt_init()
     idt_set(0x21, int21h);
     idt_set(0x80, isr80h_wrapper);
 
+    outb(0x20, 0x11);   // master init
+    outb(0xA0, 0x11);   // slave  init
+    outb(0x21, 0x20);   // master vector offset = 0x20
+    outb(0xA1, 0x28);   // slave  vector offset = 0x28
+    outb(0x21, 0x04);   // master: slave on IRQ2
+    outb(0xA1, 0x02);   // slave:  cascade identity
+    outb(0x21, 0x01);   // master: 8086 mode
+    outb(0xA1, 0x01);   // slave:  8086 mode
+    outb(0x21, 0x00);   // master: unmask all IRQs
+    outb(0xA1, 0x00);   // slave:  unmask all IRQs
 
     // Load the interrupt descriptor table
     idt_load(&idtr_descriptor);

@@ -182,10 +182,10 @@ void kernel_main()
     }
     
     struct process* process = 0;
-    int res = process_load("0:/blank.bin", &process);
+    int res = process_load("0:/shell.bin", &process);
     if (res != PEACHOS_ALL_OK)
     {
-        panic("Failed to load blank.bin\n");
+        panic("Failed to load shell.bin\n");
     }
 
     task_run_first_ever_task();

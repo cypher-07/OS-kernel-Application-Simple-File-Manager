@@ -7,6 +7,9 @@ enum SystemCommands
     SYSTEM_COMMAND1_PRINT,
     SYSTEM_COMMAND2_OPEN,
     SYSTEM_COMMAND3_READ,
+    SYSTEM_COMMAND4_FORK,
+    SYSTEM_COMMAND5_EXIT,
+    SYSTEM_COMMAND6_READLINE,
 };
 
 void isr80h_register_commands();
