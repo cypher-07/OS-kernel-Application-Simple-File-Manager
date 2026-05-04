@@ -13,4 +13,9 @@ void isr80h_register_commands()
     isr80h_register_command(SYSTEM_COMMAND4_FORK,     isr80h_command4_fork);
     isr80h_register_command(SYSTEM_COMMAND5_EXIT,     isr80h_command5_exit);
     isr80h_register_command(SYSTEM_COMMAND6_READLINE, isr80h_command6_readline);
+    isr80h_register_command(SYSTEM_COMMAND7_WRITE,    isr80h_command7_write);
+    isr80h_register_command(SYSTEM_COMMAND8_DELETE,   isr80h_command8_delete);
+    isr80h_register_command(SYSTEM_COMMAND9_CLOSE,    isr80h_command9_close);
+    isr80h_register_command(SYSTEM_COMMAND10_READDIR, isr80h_command10_readdir);
+    isr80h_register_command(SYSTEM_COMMAND11_WAIT,    isr80h_command11_wait);
 }

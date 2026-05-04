@@ -9,6 +9,10 @@
    does not resolve cleanly from this compilation unit). */
 int fopen(const char* filename, const char* mode_str);
 int fread(void* ptr, unsigned int size, unsigned int nmemb, int fd);
+int fwrite(void* ptr, unsigned int size, unsigned int nmemb, int fd);
+int fclose(int fd);
+int fdelete(const char* filename);
+int freaddir(int index, char* buf, int buf_size);
 
 /* FILE_MODE_READ / FILE_MODE_WRITE match the enum in fs/file.h */
 #define FILE_MODE_READ  0
@@ -88,4 +92,82 @@ void* isr80h_command3_read(struct interrupt_frame* frame)
 
     kfree(kernel_buf);
     return (void*)bytes_read;
+}
+
+void* isr80h_command7_write(struct interrupt_frame* frame)
+{
+    struct task* task = task_current();
+
+    int fd         = (int)task_get_stack_item(task, 0);
+    void* user_buf = task_get_stack_item(task, 1);
+    int count      = (int)task_get_stack_item(task, 2);
+
+    if (count <= 0 || count >= PAGING_PAGE_SIZE)
+        return (void*)-EINVARG;
+
+    char* kernel_buf = kzalloc(count);
+    if (!kernel_buf)
+        return (void*)-ENOMEM;
+
+    int res = copy_string_from_task(task, user_buf, kernel_buf, count);
+    if (res < 0)
+    {
+        kfree(kernel_buf);
+        return (void*)res;
+    }
+
+    int bytes_written = fwrite(kernel_buf, 1, count, fd);
+    kfree(kernel_buf);
+    return (void*)bytes_written;
+}
+
+void* isr80h_command8_delete(struct interrupt_frame* frame)
+{
+    struct task* task = task_current();
+
+    void* user_path_ptr = task_get_stack_item(task, 0);
+    char path[PEACHOS_MAX_PATH];
+    int res = copy_string_from_task(task, user_path_ptr, path, sizeof(path));
+    if (res < 0)
+        return (void*)res;
+
+    res = fdelete(path);
+    return (void*)res;
+}
+
+void* isr80h_command9_close(struct interrupt_frame* frame)
+{
+    struct task* task = task_current();
+    int fd = (int)task_get_stack_item(task, 0);
+    return (void*)fclose(fd);
+}
+
+void* isr80h_command10_readdir(struct interrupt_frame* frame)
+{
+    struct task* task = task_current();
+
+    int   index    = (int)task_get_stack_item(task, 0);
+    void* user_buf = task_get_stack_item(task, 1);
+    int   buf_size = (int)task_get_stack_item(task, 2);
+
+    if (index < 0 || buf_size <= 0 || buf_size > 256)
+        return (void*)-EINVARG;
+
+    char* kernel_buf = kzalloc(buf_size);
+    if (!kernel_buf)
+        return (void*)-ENOMEM;
+
+    int res = freaddir(index, kernel_buf, buf_size);
+    if (res > 0)
+    {
+        int copy_res = copy_to_task(task, user_buf, kernel_buf, buf_size);
+        if (copy_res < 0)
+        {
+            kfree(kernel_buf);
+            return (void*)copy_res;
+        }
+    }
+
+    kfree(kernel_buf);
+    return (void*)res;
 }

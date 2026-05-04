@@ -38,6 +38,11 @@ typedef int (*FS_CLOSE_FUNCTION)(void* private);
 
 typedef int (*FS_SEEK_FUNCTION)(void* private, uint32_t offset, FILE_SEEK_MODE seek_mode);
 
+typedef int (*FS_WRITE_FUNCTION)(struct disk* disk, void* private, uint32_t size, uint32_t nmemb, const char* buf);
+
+typedef int (*FS_DELETE_FUNCTION)(struct disk* disk, struct path_part* path);
+typedef int (*FS_READDIR_FUNCTION)(struct disk* disk, int index, char* buf, int buf_size);
+
 
 struct file_stat
 {
@@ -53,9 +58,12 @@ struct filesystem
     FS_RESOLVE_FUNCTION resolve;
     FS_OPEN_FUNCTION open;
     FS_READ_FUNCTION read;
+    FS_WRITE_FUNCTION write;
     FS_SEEK_FUNCTION seek;
     FS_STAT_FUNCTION stat;
     FS_CLOSE_FUNCTION close;
+    FS_DELETE_FUNCTION delete;
+    FS_READDIR_FUNCTION readdir;
     char name[20];
 };
 
@@ -78,8 +86,11 @@ void fs_init();
 int fopen(const char* filename, const char* mode_str);
 int fseek(int fd, int offset, FILE_SEEK_MODE whence);
 int fread(void* ptr, uint32_t size, uint32_t nmemb, int fd);
+int fwrite(void* ptr, uint32_t size, uint32_t nmemb, int fd);
 int fstat(int fd, struct file_stat* stat);
 int fclose(int fd);
+int fdelete(const char* filename);
+int freaddir(int index, char* buf, int buf_size);
 
 void fs_insert_filesystem(struct filesystem* filesystem);
 struct filesystem* fs_resolve(struct disk* disk);

@@ -7,6 +7,7 @@
 #include "status.h"
 #include "memory/heap/kheap.h"
 #include "memory/memory.h"
+#include "kernel.h"
 
 void* isr80h_command4_fork(struct interrupt_frame* frame)
 {
@@ -22,8 +23,16 @@ void* isr80h_command4_fork(struct interrupt_frame* frame)
 
 void* isr80h_command5_exit(struct interrupt_frame* frame)
 {
-    struct task* task = task_current();
-    task_free(task);
+    struct process* process = task_current()->process;
+    process_free(process);
+    return 0;
+}
+
+void* isr80h_command11_wait(struct interrupt_frame* frame)
+{
+    int pid = (int)task_get_stack_item(task_current(), 0);
+    if (process_get(pid) != 0)
+        return (void*)1;   /* child still alive */
     return 0;
 }
 
@@ -54,10 +63,15 @@ void* isr80h_command6_readline(struct interrupt_frame* frame)
 
         if (c == 0x08)      /* backspace */
         {
-            if (i > 0) i--;
+            if (i > 0)
+            {
+                i--;
+                terminal_writechar(0x08, 15);
+            }
             continue;
         }
 
+        terminal_writechar(c == '\r' ? '\n' : c, 15);
         kbuf[i++] = c;
 
         if (c == '\n' || c == '\r')

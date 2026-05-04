@@ -196,6 +196,16 @@ out:
     return res;
 }
 
+void process_free(struct process* process)
+{
+    if (!process) return;
+    task_free(process->task);
+    kfree(process->ptr);
+    kfree(process->stack);
+    processes[process->id] = 0;
+    kfree(process);
+}
+
 int process_fork(struct process* parent, struct process** child_out)
 {
     int res = 0;

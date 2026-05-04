@@ -62,3 +62,48 @@ int disk_read_block(struct disk* idisk, unsigned int lba, int total, void* buf)
 
     return disk_read_sector(lba, total, buf);
 }
+
+static int disk_write_sector(int lba, int total, void* buf)
+{
+    outb(0x1F6, (lba >> 24) | 0xE0);
+    outb(0x1F2, total);
+    outb(0x1F3, (unsigned char)(lba & 0xff));
+    outb(0x1F4, (unsigned char)(lba >> 8));
+    outb(0x1F5, (unsigned char)(lba >> 16));
+    outb(0x1F7, 0x30);
+
+    unsigned short* ptr = (unsigned short*) buf;
+    for (int b = 0; b < total; b++)
+    {
+        char c = insb(0x1F7);
+        while(!(c & 0x08))
+        {
+            c = insb(0x1F7);
+        }
+
+        for (int i = 0; i < 256; i++)
+        {
+            outw(0x1F0, *ptr);
+            ptr++;
+        }
+    }
+
+    /* Cache flush — wait for BSY to clear */
+    outb(0x1F7, 0xE7);
+    char c = insb(0x1F7);
+    while (c & 0x80)
+    {
+        c = insb(0x1F7);
+    }
+    return 0;
+}
+
+int disk_write_block(struct disk* idisk, unsigned int lba, int total, void* buf)
+{
+    if (idisk != &disk)
+    {
+        return -EIO;
+    }
+
+    return disk_write_sector(lba, total, buf);
+}

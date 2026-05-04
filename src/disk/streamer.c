@@ -1,5 +1,6 @@
 #include "streamer.h"
 #include "memory/heap/kheap.h"
+#include "memory/memory.h"
 #include "config.h"
 struct disk_stream* diskstreamer_new(int disk_id)
 {
@@ -44,6 +45,39 @@ int diskstreamer_read(struct disk_stream* stream, void* out, int total)
     if (total > PEACHOS_SECTOR_SIZE)
     {
         res = diskstreamer_read(stream, out, total-PEACHOS_SECTOR_SIZE);
+    }
+out:
+    return res;
+}
+
+int diskstreamer_write(struct disk_stream* stream, void* in, int total)
+{
+    int sector = stream->pos / PEACHOS_SECTOR_SIZE;
+    int offset = stream->pos % PEACHOS_SECTOR_SIZE;
+    char buf[PEACHOS_SECTOR_SIZE];
+
+    /* Read-modify-write: preserve bytes outside our write window */
+    int res = disk_read_block(stream->disk, sector, 1, buf);
+    if (res < 0)
+    {
+        goto out;
+    }
+
+    int total_to_write = total > (PEACHOS_SECTOR_SIZE - offset)
+                         ? (PEACHOS_SECTOR_SIZE - offset)
+                         : total;
+    memcpy(buf + offset, in, total_to_write);
+
+    res = disk_write_block(stream->disk, sector, 1, buf);
+    if (res < 0)
+    {
+        goto out;
+    }
+
+    stream->pos += total_to_write;
+    if (total > total_to_write)
+    {
+        res = diskstreamer_write(stream, (char*)in + total_to_write, total - total_to_write);
     }
 out:
     return res;

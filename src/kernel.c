@@ -18,6 +18,7 @@
 #include "gdt/gdt.h"
 #include "config.h"
 #include "status.h"
+#include "io/io.h"
 
 uint16_t* video_mem = 0;
 uint16_t terminal_row = 0;
@@ -33,12 +34,51 @@ void terminal_putchar(int x, int y, char c, char colour)
     video_mem[(y * VGA_WIDTH) + x] = terminal_make_char(c, colour);
 }
 
+static void terminal_scroll()
+{
+    for (int y = 1; y < VGA_HEIGHT; y++)
+    {
+        for (int x = 0; x < VGA_WIDTH; x++)
+        {
+            video_mem[(y - 1) * VGA_WIDTH + x] = video_mem[y * VGA_WIDTH + x];
+        }
+    }
+    for (int x = 0; x < VGA_WIDTH; x++)
+    {
+        video_mem[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = terminal_make_char(' ', 0);
+    }
+}
+
+static void terminal_update_cursor(uint16_t row, uint16_t col)
+{
+    uint16_t pos = row * VGA_WIDTH + col;
+    outb(0x3D4, 14);
+    outb(0x3D5, (uint8_t)(pos >> 8));
+    outb(0x3D4, 15);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+}
+
 void terminal_writechar(char c, char colour)
 {
+    if (c == 0x08)
+    {
+        if (terminal_col > 0)
+            terminal_col--;
+        terminal_putchar(terminal_col, terminal_row, ' ', colour);
+        terminal_update_cursor(terminal_row, terminal_col);
+        return;
+    }
+
     if (c == '\n')
     {
         terminal_row += 1;
         terminal_col = 0;
+        if (terminal_row >= VGA_HEIGHT)
+        {
+            terminal_scroll();
+            terminal_row = VGA_HEIGHT - 1;
+        }
+        terminal_update_cursor(terminal_row, terminal_col);
         return;
     }
 
@@ -48,7 +88,13 @@ void terminal_writechar(char c, char colour)
     {
         terminal_col = 0;
         terminal_row += 1;
+        if (terminal_row >= VGA_HEIGHT)
+        {
+            terminal_scroll();
+            terminal_row = VGA_HEIGHT - 1;
+        }
     }
+    terminal_update_cursor(terminal_row, terminal_col);
 }
 void terminal_initialize()
 {
@@ -61,7 +107,13 @@ void terminal_initialize()
         {
             terminal_putchar(x, y, ' ', 0);
         }
-    }   
+    }
+    /* Enable hardware cursor: scanlines 13–15 (blinking underscore) */
+    outb(0x3D4, 0x0A);
+    outb(0x3D5, 13);
+    outb(0x3D4, 0x0B);
+    outb(0x3D5, 15);
+    terminal_update_cursor(0, 0);
 }
 
 

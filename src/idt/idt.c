@@ -13,6 +13,7 @@ static ISR80H_COMMAND isr80h_commands[PEACHOS_MAX_ISR80H_COMMANDS];
 
 extern void idt_load(struct idtr_desc* ptr);
 extern void int21h();
+extern void int20h();
 extern void no_interrupt();
 extern void isr80h_wrapper();
 
@@ -26,6 +27,25 @@ void int21h_handler()
 void no_interrupt_handler()
 {
     outb(0x20, 0x20);
+}
+
+struct registers* int20h_handler(struct interrupt_frame* frame)
+{
+    outb(0x20, 0x20);
+
+    if (!task_current())
+        return 0;
+
+    if ((frame->cs & 0x3) != 3)
+        return 0;
+
+    task_current_save_state(frame);
+    struct task* next = task_get_next();
+    if (!next || next == task_current())
+        return 0;
+
+    task_switch(next);
+    return &next->registers;
 }
 
 void idt_zero()
@@ -55,6 +75,7 @@ void idt_init()
     }
 
     idt_set(0, idt_zero);
+    idt_set(0x20, int20h);
     idt_set(0x21, int21h);
     idt_set(0x80, isr80h_wrapper);
 

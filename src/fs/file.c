@@ -257,3 +257,71 @@ int fread(void* ptr, uint32_t size, uint32_t nmemb, int fd)
 out:
     return res;
 }
+
+int fwrite(void* ptr, uint32_t size, uint32_t nmemb, int fd)
+{
+    int res = 0;
+    if (size == 0 || nmemb == 0 || fd < 1)
+    {
+        res = -EINVARG;
+        goto out;
+    }
+
+    struct file_descriptor* desc = file_get_descriptor(fd);
+    if (!desc || !desc->filesystem->write)
+    {
+        res = -EINVARG;
+        goto out;
+    }
+
+    res = desc->filesystem->write(desc->disk, desc->private, size, nmemb, (const char*) ptr);
+out:
+    return res;
+}
+
+int freaddir(int index, char* buf, int buf_size)
+{
+    struct disk* disk = disk_get(0);
+    if (!disk || !disk->filesystem || !disk->filesystem->readdir)
+        return -EIO;
+    return disk->filesystem->readdir(disk, index, buf, buf_size);
+}
+
+int fdelete(const char* filename)
+{
+    int res = 0;
+    struct path_root* root_path = pathparser_parse(filename, NULL);
+    if (!root_path)
+    {
+        res = -EINVARG;
+        goto out;
+    }
+
+    if (!root_path->first)
+    {
+        res = -EINVARG;
+        goto out;
+    }
+
+    struct disk* disk = disk_get(root_path->drive_no);
+    if (!disk)
+    {
+        res = -EIO;
+        goto out;
+    }
+
+    if (!disk->filesystem || !disk->filesystem->delete)
+    {
+        res = -EIO;
+        goto out;
+    }
+
+    res = disk->filesystem->delete(disk, root_path->first);
+
+out:
+    if (root_path)
+    {
+        pathparser_free(root_path);
+    }
+    return res;
+}
