@@ -46,6 +46,7 @@ struct task
 
 struct task* task_new(struct process* process);
 struct task* task_current();
+int task_has_any();
 struct task* task_get_next();
 int task_free(struct task* task);
 

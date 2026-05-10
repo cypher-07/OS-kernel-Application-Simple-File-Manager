@@ -1,6 +1,7 @@
 #include "process.h"
 #include "isr80h.h"
 #include "task/task.h"
+extern int task_has_any();
 #include "task/process.h"
 #include "keyboard/keyboard.h"
 #include "idt/idt.h"
@@ -25,6 +26,16 @@ void* isr80h_command5_exit(struct interrupt_frame* frame)
 {
     struct process* process = task_current()->process;
     process_free(process);
+
+    /* If no tasks remain (shell exited), halt cleanly rather than
+       letting the wrapper try to resume a NULL current_task. */
+    if (!task_has_any())
+    {
+        print("\nShell exited. System halted.\n");
+        asm volatile("cli");
+        while(1) { asm volatile("hlt"); }
+    }
+
     return 0;
 }
 
@@ -50,6 +61,24 @@ void* isr80h_command6_readline(struct interrupt_frame* frame)
         return (void*)-1;
 
     int i = 0;
+
+    /* Drain any leftover \r/\n from a previous readline (e.g. the Enter
+       that submitted the shell command) before collecting new content. */
+    {
+        char c;
+        do {
+            enable_interrupts();
+            asm volatile("hlt");
+            disable_interrupts();
+            c = keyboard_pop();
+        } while (c == '\r' || c == '\n');
+        /* Put back the first real character if we got one */
+        if (c != 0 && c != '\r' && c != '\n')
+        {
+            terminal_writechar(c, 15);
+            kbuf[i++] = c;
+        }
+    }
 
     while (i < max - 1)
     {

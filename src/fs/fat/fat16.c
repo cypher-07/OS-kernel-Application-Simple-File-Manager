@@ -881,6 +881,10 @@ void *fat16_open(struct disk *disk, struct path_part *path, FILE_MODE mode)
             fat16_name_to_83(path->part, new_entry->filename, new_entry->ext);
             new_entry->attribute = FAT_FILE_ARCHIVED;
             fat16_write_root_dir_entry(disk, slot);
+
+            /* Extend in-memory total so future searches reach this new slot. */
+            if (slot >= private->root_directory.total)
+                private->root_directory.total = slot + 1;
         }
 
         descriptor = kzalloc(sizeof(struct fat_file_descriptor));

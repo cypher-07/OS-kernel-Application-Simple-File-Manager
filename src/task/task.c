@@ -25,6 +25,11 @@ struct task *task_current()
     return current_task;
 }
 
+int task_has_any()
+{
+    return task_head != 0;
+}
+
 struct task *task_new(struct process *process)
 {
     int res = 0;

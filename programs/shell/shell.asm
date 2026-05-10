@@ -46,6 +46,21 @@ _start:
     test eax, eax
     jle  .read_again
 
+    ; Check for exit/quit before forking — kills the shell directly
+    push cmd_exit
+    push cmd_buf
+    call str_startswith
+    add  esp, 8
+    test eax, eax
+    jnz  .do_exit_now
+
+    push cmd_quit
+    push cmd_buf
+    call str_startswith
+    add  esp, 8
+    test eax, eax
+    jnz  .do_exit_now
+
     ; Fork before dispatch
     mov  eax, SYS_FORK
     int  0x80
@@ -88,7 +103,32 @@ _start:
     test eax, eax
     jnz  .do_del
 
+    ; Dispatch: exit
+    push cmd_exit
+    push cmd_buf
+    call str_startswith
+    add  esp, 8
+    test eax, eax
+    jnz  .do_exit
+
     push msg_unknown
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+    mov  eax, SYS_EXIT
+    int  0x80
+
+; ── exit — shut down the shell ──────────────────────────────────────────
+.do_exit:
+    push msg_exit
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+    mov  eax, SYS_EXIT
+    int  0x80
+
+.do_exit_now:
+    push msg_exit
     mov  eax, SYS_PRINT
     int  0x80
     add  esp, 4
@@ -98,6 +138,21 @@ _start:
 .parent_wait:
     mov  [child_pid], eax
 
+    ; Print "[fork] child PID: X"
+    push msg_fork_prefix
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+
+    push dword [child_pid]
+    call print_int
+    add  esp, 4
+
+    push msg_newline
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+
 .wait_loop:
     push dword [child_pid]
     mov  eax, SYS_WAIT
@@ -105,6 +160,13 @@ _start:
     add  esp, 4
     test eax, eax
     jnz  .wait_loop
+
+    ; Print "[parent] resumed after child exit"
+    push msg_parent_resume
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+
     jmp  .prompt_loop
 
 ; ── ls — real FAT16 directory listing ───────────────────────────────────
@@ -377,6 +439,54 @@ build_path:
     ret
 
 
+; ── print_int(n) — print decimal integer to terminal ───────────────────
+print_int:
+    push ebp
+    mov  ebp, esp
+    push edi
+    push ecx
+    push edx
+    push ebx
+
+    mov  eax, [ebp+8]   ; number to print
+    lea  edi, [int_buf+10]
+    mov  byte [edi], 0
+    dec  edi
+    mov  ecx, 0         ; digit count
+
+    test eax, eax
+    jnz  .pi_loop
+    mov  byte [edi], '0'
+    dec  edi
+    inc  ecx
+    jmp  .pi_print
+
+.pi_loop:
+    test eax, eax
+    jz   .pi_print
+    xor  edx, edx
+    mov  ebx, 10
+    div  ebx
+    add  dl, '0'
+    mov  [edi], dl
+    dec  edi
+    inc  ecx
+    jmp  .pi_loop
+
+.pi_print:
+    inc  edi            ; edi now points to first digit
+    push edi
+    mov  eax, SYS_PRINT
+    int  0x80
+    add  esp, 4
+
+    pop  ebx
+    pop  edx
+    pop  ecx
+    pop  edi
+    pop  ebp
+    ret
+
 ; ── str_startswith(buf, prefix) → eax=1 if match ────────────────────────
 str_startswith:
     push ebp
@@ -423,7 +533,7 @@ memzero:
 
 section .data
 msg_welcome:      db 'CYSEOS Shell v0.1', 0x0A,
-                  db 'Commands: ls  cat <file>  write <file>  del <file>', 0x0A, 0
+                  db 'Commands: ls  cat <file>  write <file>  del <file>  exit/quit', 0x0A, 0
 msg_prompt:       db '> ', 0
 msg_unknown:      db 'Unknown command. Try: ls  cat <file>  write <file>  del <file>', 0x0A, 0
 msg_ls_header:    db 'Directory of 0:/', 0x0A, 0
@@ -437,10 +547,16 @@ msg_del_ok:       db 'Deleted: ', 0
 msg_err_write:    db 'Error: write failed', 0x0A, 0
 msg_err_del:      db 'Error: delete failed', 0x0A, 0
 
+msg_fork_prefix:  db '[fork] child PID: ', 0
+msg_parent_resume:db '[parent] child exited, shell resuming', 0x0A, 0
+
 cmd_ls:           db 'ls', 0
 cmd_cat:          db 'cat ', 0
 cmd_write:        db 'write ', 0
 cmd_del:          db 'del ', 0
+cmd_exit:         db 'exit', 0
+cmd_quit:         db 'quit', 0
+msg_exit:         db 'Goodbye!', 0x0A, 0
 path_hello:       db '0:/hello.txt', 0
 
 section .bss
@@ -453,3 +569,4 @@ write_buf:    resb 512
 write_count:  resd 1
 write_result: resd 1
 child_pid:    resd 1
+int_buf:      resb 12
