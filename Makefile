@@ -7,11 +7,12 @@ all: ./bin/boot.bin ./bin/kernel.bin user_programs
 	dd if=./bin/boot.bin >> ./bin/os.bin
 	dd if=./bin/kernel.bin >> ./bin/os.bin
 	dd if=/dev/zero bs=1048576 count=16 >> ./bin/os.bin
-	# Use mtools to copy files into the FAT16 partition
-	MTOOLS_SKIP_CHECK=1 mformat -i ./bin/os.bin@@512 -F ::
-	MTOOLS_SKIP_CHECK=1 mcopy -i ./bin/os.bin@@512 ./hello.txt ::hello.txt
-	MTOOLS_SKIP_CHECK=1 mcopy -i ./bin/os.bin@@512 ./programs/blank/blank.bin ::blank.bin
-	MTOOLS_SKIP_CHECK=1 mcopy -i ./bin/os.bin@@512 ./programs/shell/shell.bin ::shell.bin
+	# Mount FAT16 partition and copy files
+	sudo mount -t vfat -o loop,offset=512 ./bin/os.bin /mnt/d
+	sudo cp ./hello.txt /mnt/d
+	sudo cp ./programs/blank/blank.bin /mnt/d
+	sudo cp ./programs/shell/shell.bin /mnt/d
+	sudo umount /mnt/d
 ./bin/kernel.bin: $(FILES)
 	i686-elf-ld -g -relocatable $(FILES) -o ./build/kernelfull.o
 	i686-elf-gcc $(FLAGS) -T ./src/linker.ld -o ./bin/kernel.bin -ffreestanding -O0 -nostdlib ./build/kernelfull.o
